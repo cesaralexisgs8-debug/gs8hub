@@ -142,7 +142,7 @@ closeBtn.Text = "×"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.TextSize = 20
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.ZIndex = 102
+closeBtn.ZIndex = 200 -- Aumentado
 closeBtn.Active = true
 Instance.new("UICorner", closeBtn)
 
@@ -155,7 +155,7 @@ minimizeBtn.Text = "-"
 minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 minimizeBtn.TextSize = 20
 minimizeBtn.Font = Enum.Font.GothamBold
-minimizeBtn.ZIndex = 102
+minimizeBtn.ZIndex = 200 -- Aumentado
 minimizeBtn.Active = true
 Instance.new("UICorner", minimizeBtn)
 
@@ -341,7 +341,19 @@ createSlider("WalkSpeed", movementTab, 16, 300, 16, function(v) if player.Charac
 createToggle("Aimbot (Right Click)", combatTab, "aimbotEnabled")
 createToggle("Silent Aim", combatTab, "silentAim")
 createToggle("Triggerbot", combatTab, "triggerbot")
-createToggle("Hitbox Expander", combatTab, "hitboxExpander")
+createToggle("Hitbox Expander", combatTab, "hitboxExpander", function(v)
+    if not v then
+        -- Restaurar hitboxes al desactivar
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local root = p.Character.HumanoidRootPart
+                root.Size = Vector3.new(2, 2, 1)
+                root.Transparency = 1
+                root.CanCollide = true
+            end
+        end
+    end
+end)
 createSlider("Hitbox Size", combatTab, 2, 20, 2, function(v) config.hitboxSize = v end)
 createToggle("Show FOV Circle", combatTab, "fovVisible", function(v) if fovCircle then fovCircle.Visible = v end end)
 createSlider("FOV Radius", combatTab, 10, 800, 150, function(v) config.aimbotFov = v if fovCircle then fovCircle.Radius = v end end)
@@ -412,20 +424,46 @@ createButton("Set Color: Purple", settingsTab, function() updateUIColors(Color3.
 local function isEnemy(p)
     if p == player then return false end
     
+    -- Colores de equipo mencionados por el usuario
+    local alliedColors = {
+        BrickColor.new("Bright yellow"), 
+        BrickColor.new("Bright green"), 
+        BrickColor.new("Bright blue"),
+        BrickColor.new("Yellow"),
+        BrickColor.new("Green"),
+        BrickColor.new("Blue"),
+        BrickColor.new("Deep blue"),
+        BrickColor.new("Dark green")
+    }
+    
     -- Si el juego usa equipos oficiales de Roblox
     if p.Team ~= nil and player.Team ~= nil then
-        return p.Team ~= player.Team
+        if p.Team == player.Team then return false end
+        -- Si el nombre del equipo contiene el color
+        local teamName = p.Team.Name:lower()
+        local myTeamName = player.Team.Name:lower()
+        if teamName == myTeamName then return false end
     end
     
-    -- Si el juego usa TeamColor (colores amarillo, verde, azul que mencionaste)
-    if p.TeamColor ~= player.TeamColor then
-        return true
+    -- Si el jugador local y el objetivo tienen el mismo TeamColor
+    if p.TeamColor == player.TeamColor then
+        return false
     end
     
-    -- Si es neutral pero no es el jugador local
-    if p.Neutral then return true end
+    -- Verificación adicional por si el usuario está en uno de los colores específicos
+    -- y el objetivo también es de un color aliado "conocido"
+    local isPlayerAllied = false
+    local isTargetAllied = false
     
-    return false
+    for _, color in ipairs(alliedColors) do
+        if player.TeamColor == color then isPlayerAllied = true end
+        if p.TeamColor == color then isTargetAllied = true end
+    end
+    
+    -- Si ambos son considerados aliados por color, no es enemigo
+    if isPlayerAllied and isTargetAllied then return false end
+
+    return true
 end
 
 -- Aimbot Helper: Find target closest to center
@@ -528,25 +566,33 @@ RunService.RenderStepped:Connect(function()
             
             -- Target Magnet (Innovador y Reparado)
             if config.targetMagnet and target.Parent and target.Parent:FindFirstChild("HumanoidRootPart") then
-                local root = target.Parent.HumanoidRootPart
-                -- Teletransportar frente a la cámara a una distancia segura para disparar
-                -- Ahora se usa una posición relativa a la cámara sin mover la cámara hacia arriba
-                local targetPos = Camera.CFrame.Position + (Camera.CFrame.LookVector * 20)
+                local character = target.Parent
+                local root = character.HumanoidRootPart
+                
+                -- Teletransportar frente a la cámara a una distancia que no bloquee el disparo
+                local targetPos = Camera.CFrame.Position + (Camera.CFrame.LookVector * 25)
                 root.CFrame = CFrame.new(targetPos)
                 root.Velocity = Vector3.new(0,0,0)
                 
-                -- Si quieres que el enemigo siempre te mire a ti mientras lo mueves:
-                -- root.CFrame = CFrame.lookAt(targetPos, Camera.CFrame.Position)
+                -- Hacer que el enemigo sea atravesable físicamente para no bloquear el paso ni el arma
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        -- part.CanQuery = true -- IMPORTANTE: Mantener true para que las balas lo detecten
+                    end
+                end
             end
         end
     end
     
     if config.triggerbot then
-        local target = mouse.Target
-        if target and target.Parent:FindFirstChild("Humanoid") then
-            local p = Players:GetPlayerFromCharacter(target.Parent)
-            if p and isEnemy(p) and p.Character.Humanoid.Health > 0 then
-                if mouse1click then mouse1click() end
+        local target = getClosestPlayer()
+        if target then
+            if mouse1click then 
+                mouse1click() 
+            elseif (mouse.Target and mouse.Target.Parent:FindFirstChild("Humanoid")) then
+                -- Fallback si mouse1click no existe (algunos ejecutores)
+                -- Nota: El triggerbot en FOV realmente necesita mouse1click para ser efectivo
             end
         end
     end
@@ -706,9 +752,13 @@ end)
 
 -- Controls
 UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
     if input.KeyCode == config.toggleKey then
         config.isFlying = not config.isFlying
+    end
+    
+    -- Tecla de pánico/emergencia para mostrar/ocultar el menú si los botones fallan
+    if input.KeyCode == Enum.KeyCode.Insert or input.KeyCode == Enum.KeyCode.RightControl then
+        mainFrame.Visible = not mainFrame.Visible
     end
 end)
 
@@ -768,10 +818,9 @@ end)
 -- Minimize Logic
 local isMinimized = false
 local lastSize = UDim2.new(0, 450, 0, 320)
-minimizeBtn.MouseButton1Click:Connect(function()
+
+local function toggleMinimize()
     isMinimized = not isMinimized
-    
-    -- Forzar visibilidad inmediata de los contenedores
     sidebar.Visible = not isMinimized
     container.Visible = not isMinimized
     resizeHandle.Visible = not isMinimized
@@ -785,10 +834,10 @@ minimizeBtn.MouseButton1Click:Connect(function()
     end
     
     minimizeBtn.Text = isMinimized and "+" or "-"
-end)
+end
 
 -- Close
-closeBtn.MouseButton1Click:Connect(function()
+local function closeScript()
     -- Limpieza total
     if fovCircle then 
         pcall(function() fovCircle:Remove() end)
@@ -809,6 +858,28 @@ closeBtn.MouseButton1Click:Connect(function()
     
     screenGui:Destroy()
     if getgenv then getgenv()[scriptName] = nil end
+end
+
+-- Uso de MouseButton1Down para mayor respuesta en botones de cabecera
+minimizeBtn.MouseButton1Down:Connect(toggleMinimize)
+closeBtn.MouseButton1Down:Connect(closeScript)
+
+-- Alternativamente, detectar clics en el header de forma manual si los botones fallan
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        -- Verificar si el clic fue sobre los botones basándose en posición absoluta
+        local mPos = input.Position
+        local minPos = minimizeBtn.AbsolutePosition
+        local minSize = minimizeBtn.AbsoluteSize
+        local clsPos = closeBtn.AbsolutePosition
+        local clsSize = closeBtn.AbsoluteSize
+        
+        if mPos.X >= minPos.X and mPos.X <= minPos.X + minSize.X and mPos.Y >= minPos.Y and mPos.Y <= minPos.Y + minSize.Y then
+            toggleMinimize()
+        elseif mPos.X >= clsPos.X and mPos.X <= clsPos.X + clsSize.X and mPos.Y >= clsPos.Y and mPos.Y <= clsPos.Y + clsSize.Y then
+            closeScript()
+        end
+    end
 end)
 
 -- Character Added

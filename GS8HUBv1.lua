@@ -1,3 +1,4 @@
+
 --[[
     FlyHub V3 - Ultimate Shooter Edition
     A high-performance utility script for Roblox shooters.
@@ -110,6 +111,7 @@ mainFrame.Size = UDim2.new(0, 450, 0, 320)
 mainFrame.Position = UDim2.new(0.5, -225, 0.4, -160)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
 mainFrame.Active = true
 mainFrame.Draggable = true -- Fallback nativo (aunque deprecated, funciona bien en muchos ejecutores)
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
@@ -509,25 +511,22 @@ RunService.RenderStepped:Connect(function()
     if config.aimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local target = getClosestPlayer()
         if target then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+            -- Solo forzar la cámara si el Magnet NO está activo
+            if not config.targetMagnet then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+            end
             
             -- Target Magnet (Innovador y Reparado)
             if config.targetMagnet and target.Parent and target.Parent:FindFirstChild("HumanoidRootPart") then
                 local root = target.Parent.HumanoidRootPart
                 -- Teletransportar frente a la cámara a una distancia segura para disparar
+                -- Ahora se usa una posición relativa a la cámara sin mover la cámara hacia arriba
                 local targetPos = Camera.CFrame.Position + (Camera.CFrame.LookVector * 20)
                 root.CFrame = CFrame.new(targetPos)
                 root.Velocity = Vector3.new(0,0,0)
                 
-                -- Forzar colisión desactivada y transparencia para no obstruir
-                for _, part in pairs(target.Parent:GetDescendants()) do
-                    if part:IsA("BasePart") then 
-                        part.CanCollide = false 
-                        if part.Name ~= "HumanoidRootPart" then
-                            part.Transparency = 0.5
-                        end
-                    end
-                end
+                -- Si quieres que el enemigo siempre te mire a ti mientras lo mueves:
+                -- root.CFrame = CFrame.lookAt(targetPos, Camera.CFrame.Position)
             end
         end
     end
@@ -795,3 +794,4 @@ mainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(mainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 450, 0, 320)}):Play()
 
 print("FlyHub V3 Loaded Successfully!")
+

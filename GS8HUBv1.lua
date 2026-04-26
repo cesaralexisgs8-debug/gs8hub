@@ -98,7 +98,7 @@ end
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = scriptName
-screenGui.DisplayOrder = 100 -- Asegurar que esté por encima de todo
+screenGui.DisplayOrder = 999999999 -- Valor máximo para estar siempre encima
 local success, err = pcall(function() screenGui.Parent = CoreGui end)
 if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
 screenGui.ResetOnSpawn = false
@@ -110,16 +110,16 @@ mainFrame.Size = UDim2.new(0, 450, 0, 320)
 mainFrame.Position = UDim2.new(0.5, -225, 0.4, -160)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 mainFrame.BorderSizePixel = 0
-mainFrame.ClipsDescendants = true
+mainFrame.ClipsDescendants = false -- Cambiado a false para no ocultar botones
 mainFrame.Active = true
-mainFrame.Draggable = true -- Fallback nativo (aunque deprecated, funciona bien en muchos ejecutores)
+-- ELIMINAR Draggable nativo para evitar conflictos con el script de arrastre personalizado
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
 local header = Instance.new("Frame", mainFrame)
 header.Size = UDim2.new(1, 0, 0, 40)
 header.BackgroundTransparency = 1
 header.ZIndex = 100
-header.Active = true -- Importante para que el header detecte el arrastre
+header.Active = false -- Cambiado a false para que no bloquee clics a los hijos
 
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(1, -80, 1, 0)
@@ -134,29 +134,31 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 title.ZIndex = 101
 
 local closeBtn = Instance.new("TextButton", header)
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
+closeBtn.Size = UDim2.new(0, 35, 0, 35) -- Más grandes
+closeBtn.Position = UDim2.new(1, -40, 0.5, -17)
 closeBtn.BackgroundTransparency = 0.5
 closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 closeBtn.Text = "×"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.TextSize = 20
+closeBtn.TextSize = 22
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.ZIndex = 200 -- Aumentado
+closeBtn.ZIndex = 1000 -- MUY ALTO
 closeBtn.Active = true
+closeBtn.AutoButtonColor = true
 Instance.new("UICorner", closeBtn)
 
 local minimizeBtn = Instance.new("TextButton", header)
-minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-minimizeBtn.Position = UDim2.new(1, -70, 0.5, -15)
+minimizeBtn.Size = UDim2.new(0, 35, 0, 35) -- Más grandes
+minimizeBtn.Position = UDim2.new(1, -80, 0.5, -17)
 minimizeBtn.BackgroundTransparency = 0.5
 minimizeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 minimizeBtn.Text = "-"
 minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-minimizeBtn.TextSize = 20
+minimizeBtn.TextSize = 22
 minimizeBtn.Font = Enum.Font.GothamBold
-minimizeBtn.ZIndex = 200 -- Aumentado
+minimizeBtn.ZIndex = 1000 -- MUY ALTO
 minimizeBtn.Active = true
+minimizeBtn.AutoButtonColor = true
 Instance.new("UICorner", minimizeBtn)
 
 local sidebar = Instance.new("Frame", mainFrame)
@@ -209,13 +211,14 @@ local function createTab(name)
     
     btn.MouseButton1Click:Connect(function()
         for _, t in pairs(tabs) do
+            TweenService:Create(t.content, TweenInfo.new(0.3), {ImageTransparency = 1}):Play()
             t.content.Visible = false
-            t.btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-            t.btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+            TweenService:Create(t.btn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(30, 30, 30), TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
         end
         content.Visible = true
-        btn.BackgroundColor3 = config.accentColor
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        content.GroupTransparency = 1
+        TweenService:Create(content, TweenInfo.new(0.4), {GroupTransparency = 0}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.3), {BackgroundColor3 = config.accentColor, TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
     end)
     
     local tab = {btn = btn, content = content}
@@ -233,6 +236,19 @@ local settingsTab = createTab("Settings")
 tabs[1].btn.BackgroundColor3 = config.accentColor
 tabs[1].btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 tabs[1].content.Visible = true
+-- Añadir CanvasGroup para transiciones suaves si el ejecutor lo soporta
+for _, t in pairs(tabs) do
+    if not t.content:FindFirstChildOfClass("CanvasGroup") then
+        local cg = Instance.new("CanvasGroup", t.content)
+        cg.Size = UDim2.new(1, 0, 1, 0)
+        cg.BackgroundTransparency = 1
+        for _, child in pairs(t.content:GetChildren()) do
+            if child ~= cg and not child:IsA("UIListLayout") then
+                child.Parent = cg
+            end
+        end
+    end
+end
 
 -- Helper UI components
 local function createButton(text, parent, callback)
@@ -466,8 +482,8 @@ local function isEnemy(p)
     return true
 end
 
--- Aimbot Helper: Find target closest to center
-local function getClosestPlayer()
+-- Aimbot Helper: Find target closest to center with visibility check
+local function getClosestPlayer(checkVisibility)
     local closest = nil
     local shortestDist = config.aimbotFov
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -475,12 +491,27 @@ local function getClosestPlayer()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character and p.Character:FindFirstChild(config.aimPart) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
             if isEnemy(p) then
-                local pos, onScreen = Camera:WorldToViewportPoint(p.Character[config.aimPart].Position)
+                local part = p.Character[config.aimPart]
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                
                 if onScreen then
-                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    if dist < shortestDist then
-                        closest = p.Character[config.aimPart]
-                        shortestDist = dist
+                    -- Verificación de visibilidad (opcional)
+                    local isVisible = true
+                    if checkVisibility then
+                        local castPoints = {part.Position}
+                        local ignoreList = {player.Character, p.Character, Camera}
+                        local obscuringParts = Camera:GetPartsObscuringTarget(castPoints, ignoreList)
+                        if #obscuringParts > 0 then
+                            isVisible = false
+                        end
+                    end
+                    
+                    if isVisible then
+                        local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                        if dist < shortestDist then
+                            closest = part
+                            shortestDist = dist
+                        end
                     end
                 end
             end
@@ -551,17 +582,21 @@ local function updateESP()
 end
 
 -- Main Render Loop
+local lastTrigger = 0
 RunService.RenderStepped:Connect(function()
     if fovCircle then
         fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     end
     
     if config.aimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local target = getClosestPlayer()
+        local target = getClosestPlayer(true) -- Añadida verificación de visibilidad
         if target then
-            -- Solo forzar la cámara si el Magnet NO está activo
+            -- Aimbot suave para no bloquear el disparo
+            local targetPos = target.Position
             if not config.targetMagnet then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+                -- Apuntar suavemente
+                local lookAt = CFrame.new(Camera.CFrame.Position, targetPos)
+                Camera.CFrame = Camera.CFrame:lerp(lookAt, 0.1) -- Reducido a 0.1 para más suavidad
             end
             
             -- Target Magnet (Innovador y Reparado)
@@ -570,29 +605,36 @@ RunService.RenderStepped:Connect(function()
                 local root = character.HumanoidRootPart
                 
                 -- Teletransportar frente a la cámara a una distancia que no bloquee el disparo
-                local targetPos = Camera.CFrame.Position + (Camera.CFrame.LookVector * 25)
-                root.CFrame = CFrame.new(targetPos)
+                local targetPosMagnet = Camera.CFrame.Position + (Camera.CFrame.LookVector * 25)
+                root.CFrame = CFrame.new(targetPosMagnet)
                 root.Velocity = Vector3.new(0,0,0)
                 
                 -- Hacer que el enemigo sea atravesable físicamente para no bloquear el paso ni el arma
                 for _, part in pairs(character:GetDescendants()) do
                     if part:IsA("BasePart") then
                         part.CanCollide = false
-                        -- part.CanQuery = true -- IMPORTANTE: Mantener true para que las balas lo detecten
                     end
                 end
             end
         end
     end
     
-    if config.triggerbot then
-        local target = getClosestPlayer()
-        if target then
-            if mouse1click then 
-                mouse1click() 
-            elseif (mouse.Target and mouse.Target.Parent:FindFirstChild("Humanoid")) then
-                -- Fallback si mouse1click no existe (algunos ejecutores)
-                -- Nota: El triggerbot en FOV realmente necesita mouse1click para ser efectivo
+    -- Triggerbot Refinado
+    if config.triggerbot and not mainFrame.Visible and not UserInputService:GetFocusedTextBox() then
+        -- Verificar que el jugador tenga un arma/herramienta equipada
+        local hasTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+        
+        if hasTool then
+            local target = getClosestPlayer(true) -- Solo dispara si es visible
+            if target and (tick() - lastTrigger) > 0.1 then 
+                lastTrigger = tick()
+                if mouse1click then 
+                    mouse1click() 
+                elseif mouse1press and mouse1release then
+                    mouse1press()
+                    task.wait(0.02)
+                    mouse1release()
+                end
             end
         end
     end
@@ -711,7 +753,7 @@ setreadonly(mt, false)
 
 mt.__index = newcclosure(function(t, k)
     if not checkcaller() and config.silentAim and t:IsA("Mouse") and (k == "Hit" or k == "Target") then
-        local target = getClosestPlayer()
+        local target = getClosestPlayer(true) -- Solo Silent Aim si es visible
         if target then
             return k == "Hit" and target.CFrame or target
         end
@@ -725,11 +767,13 @@ mt.__namecall = newcclosure(function(self, ...)
 
     if not checkcaller() and config.silentAim then
         if method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist" or method == "Raycast" or method == "FindPartOnRay" then
-            local target = getClosestPlayer()
+            local target = getClosestPlayer(true) -- Solo Silent Aim si es visible
             if target then
-                -- Redirigir el raycast hacia el target si es necesario
-                -- Nota: La mayoría de los juegos de Roblox modernos usan Mouse.Hit, 
-                -- el cual ya está cubierto por el hook de __index arriba.
+                if method == "Raycast" then
+                    -- Para Raycast
+                elseif method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" then
+                    return oldNameCall(self, Ray.new(args[1].Origin, (target.Position - args[1].Origin).Unit * 1000), args[2], args[3])
+                end
             end
         end
     end
@@ -783,7 +827,17 @@ end)
 UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
-        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        local screenSide = Camera.ViewportSize
+        
+        -- Calcular nueva posición con clamping para que no se salga de la pantalla
+        local targetX = startPos.X.Offset + delta.X
+        local targetY = startPos.Y.Offset + delta.Y
+        
+        -- Clamping (Límites)
+        targetX = math.clamp(targetX, 0, screenSide.X - mainFrame.AbsoluteSize.X)
+        targetY = math.clamp(targetY, 0, screenSide.Y - mainFrame.AbsoluteSize.Y)
+        
+        mainFrame.Position = UDim2.new(0, targetX, 0, targetY)
     end
 end)
 
@@ -860,27 +914,35 @@ local function closeScript()
     if getgenv then getgenv()[scriptName] = nil end
 end
 
--- Uso de MouseButton1Down para mayor respuesta en botones de cabecera
-minimizeBtn.MouseButton1Down:Connect(toggleMinimize)
-closeBtn.MouseButton1Down:Connect(closeScript)
-
--- Alternativamente, detectar clics en el header de forma manual si los botones fallan
-header.InputBegan:Connect(function(input)
+-- Uso de InputBegan global para asegurar que los botones funcionen siempre
+UserInputService.InputBegan:Connect(function(input, gpe)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        -- Verificar si el clic fue sobre los botones basándose en posición absoluta
+        -- Coordenadas del mouse/toque
         local mPos = input.Position
-        local minPos = minimizeBtn.AbsolutePosition
-        local minSize = minimizeBtn.AbsoluteSize
-        local clsPos = closeBtn.AbsolutePosition
-        local clsSize = closeBtn.AbsoluteSize
         
-        if mPos.X >= minPos.X and mPos.X <= minPos.X + minSize.X and mPos.Y >= minPos.Y and mPos.Y <= minPos.Y + minSize.Y then
-            toggleMinimize()
-        elseif mPos.X >= clsPos.X and mPos.X <= clsPos.X + clsSize.X and mPos.Y >= clsPos.Y and mPos.Y <= clsPos.Y + clsSize.Y then
+        -- Verificar si el menú está visible
+        if not mainFrame.Visible then return end
+        
+        -- Función para verificar si un punto está dentro de un objeto UI
+        local function isInside(obj)
+            if not obj or not obj.Visible then return false end
+            local absPos = obj.AbsolutePosition
+            local absSize = obj.AbsoluteSize
+            return mPos.X >= absPos.X and mPos.X <= absPos.X + absSize.X and 
+                   mPos.Y >= absPos.Y and mPos.Y <= absPos.Y + absSize.Y
+        end
+        
+        if isInside(closeBtn) then
             closeScript()
+        elseif isInside(minimizeBtn) then
+            toggleMinimize()
         end
     end
 end)
+
+-- Mantener los eventos de botón como respaldo visual (hover effects, etc)
+minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+closeBtn.MouseButton1Click:Connect(closeScript)
 
 -- Character Added
 player.CharacterAdded:Connect(function()
@@ -892,4 +954,3 @@ mainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(mainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 450, 0, 320)}):Play()
 
 print("FlyHub V3 Loaded Successfully!")
-

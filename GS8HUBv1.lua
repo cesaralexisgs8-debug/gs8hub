@@ -110,28 +110,18 @@ mainFrame.Size = UDim2.new(0, 450, 0, 320)
 mainFrame.Position = UDim2.new(0.5, -225, 0.4, -160)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 mainFrame.BorderSizePixel = 0
-mainFrame.Active = true -- Importante para capturar inputs
+mainFrame.Active = true
+mainFrame.Draggable = true -- Fallback nativo (aunque deprecated, funciona bien en muchos ejecutores)
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
-
-local sidebar = Instance.new("Frame", mainFrame)
-sidebar.Size = UDim2.new(0, 120, 1, 0)
-sidebar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-sidebar.BorderSizePixel = 0
-Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
-
-local container = Instance.new("Frame", mainFrame)
-container.Position = UDim2.new(0, 130, 0, 45)
-container.Size = UDim2.new(1, -140, 1, -55)
-container.BackgroundTransparency = 1
 
 local header = Instance.new("Frame", mainFrame)
 header.Size = UDim2.new(1, 0, 0, 40)
 header.BackgroundTransparency = 1
-header.ZIndex = 20
-header.Active = false -- Asegurar que no bloquee clics en botones
+header.ZIndex = 100
+header.Active = true -- Importante para que el header detecte el arrastre
 
 local title = Instance.new("TextLabel", header)
-title.Size = UDim2.new(1, -40, 1, 0)
+title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "GS8 HUB <font color='#5865F2'>V5</font> - SHOOTER"
@@ -140,29 +130,47 @@ title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 16
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.ZIndex = 21
+title.ZIndex = 101
 
 local closeBtn = Instance.new("TextButton", header)
 closeBtn.Size = UDim2.new(0, 30, 0, 30)
 closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
-closeBtn.BackgroundTransparency = 1
+closeBtn.BackgroundTransparency = 0.5
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 closeBtn.Text = "×"
-closeBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-closeBtn.TextSize = 24
-closeBtn.Font = Enum.Font.Gotham
-closeBtn.ZIndex = 22
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 20
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.ZIndex = 102
+closeBtn.Active = true
+Instance.new("UICorner", closeBtn)
 
 local minimizeBtn = Instance.new("TextButton", header)
 minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-minimizeBtn.Position = UDim2.new(1, -65, 0.5, -15)
-minimizeBtn.BackgroundTransparency = 1
+minimizeBtn.Position = UDim2.new(1, -70, 0.5, -15)
+minimizeBtn.BackgroundTransparency = 0.5
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 minimizeBtn.Text = "-"
-minimizeBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-minimizeBtn.TextSize = 24
-minimizeBtn.Font = Enum.Font.Gotham
-minimizeBtn.ZIndex = 22
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.TextSize = 20
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.ZIndex = 102
+minimizeBtn.Active = true
+Instance.new("UICorner", minimizeBtn)
 
--- Resize Handle
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 120, 1, -40)
+sidebar.Position = UDim2.new(0, 0, 0, 40)
+sidebar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+sidebar.BorderSizePixel = 0
+sidebar.ZIndex = 1
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
+
+local container = Instance.new("Frame", mainFrame)
+container.Position = UDim2.new(0, 125, 0, 45)
+container.Size = UDim2.new(1, -135, 1, -55)
+container.BackgroundTransparency = 1
+container.ZIndex = 1
 local resizeHandle = Instance.new("Frame", mainFrame)
 resizeHandle.Size = UDim2.new(0, 20, 0, 20)
 resizeHandle.Position = UDim2.new(1, -20, 1, -20)
@@ -702,14 +710,6 @@ header.InputBegan:Connect(function(input)
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
-        
-        local connection
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-                connection:Disconnect()
-            end
-        end)
     end
 end)
 
@@ -717,6 +717,12 @@ UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        dragging = false
     end
 end)
 
@@ -728,14 +734,6 @@ resizeHandle.InputBegan:Connect(function(input)
         resizing = true
         resizeStartPos = input.Position
         startSize = mainFrame.Size
-        
-        local connection
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                resizing = false
-                connection:Disconnect()
-            end
-        end)
     end
 end)
 
@@ -745,6 +743,12 @@ UserInputService.InputChanged:Connect(function(input)
         local newX = math.clamp(startSize.X.Offset + delta.X, 300, 800)
         local newY = math.clamp(startSize.Y.Offset + delta.Y, 200, 600)
         mainFrame.Size = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        resizing = false
     end
 end)
 
@@ -786,3 +790,4 @@ mainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(mainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 450, 0, 320)}):Play()
 
 print("FlyHub V3 Loaded Successfully!")
+

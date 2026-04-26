@@ -710,6 +710,14 @@ header.InputBegan:Connect(function(input)
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
+        
+        local connection
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                connection:Disconnect()
+            end
+        end)
     end
 end)
 
@@ -717,12 +725,6 @@ UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        dragging = false
     end
 end)
 
@@ -734,6 +736,14 @@ resizeHandle.InputBegan:Connect(function(input)
         resizing = true
         resizeStartPos = input.Position
         startSize = mainFrame.Size
+        
+        local connection
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                resizing = false
+                connection:Disconnect()
+            end
+        end)
     end
 end)
 
@@ -743,12 +753,6 @@ UserInputService.InputChanged:Connect(function(input)
         local newX = math.clamp(startSize.X.Offset + delta.X, 300, 800)
         local newY = math.clamp(startSize.Y.Offset + delta.Y, 200, 600)
         mainFrame.Size = UDim2.new(0, newX, 0, newY)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        resizing = false
     end
 end)
 
@@ -774,8 +778,9 @@ end)
 
 -- Close
 closeBtn.MouseButton1Click:Connect(function()
-    stopFly()
-    if fovCircle then fovCircle:Remove() end
+    if fovCircle then 
+        pcall(function() fovCircle:Remove() end)
+    end
     screenGui:Destroy()
     if getgenv then getgenv()[scriptName] = nil end
 end)
@@ -790,4 +795,3 @@ mainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(mainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 450, 0, 320)}):Play()
 
 print("FlyHub V3 Loaded Successfully!")
-

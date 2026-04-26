@@ -1,4 +1,3 @@
-
 --[[
     FlyHub V3 - Ultimate Shooter Edition
     A high-performance utility script for Roblox shooters.
@@ -348,8 +347,18 @@ createToggle("Show FOV Circle", combatTab, "fovVisible", function(v) if fovCircl
 createSlider("FOV Radius", combatTab, 10, 800, 150, function(v) config.aimbotFov = v if fovCircle then fovCircle.Radius = v end end)
 
 -- Visuals Tab
-createToggle("ESP Enabled", visualsTab, "espEnabled")
-createToggle("Team Check", visualsTab, "teamCheck")
+createToggle("ESP Enabled", visualsTab, "espEnabled", function(v)
+    if not v then
+        -- Limpieza inmediata al desactivar
+        for p, h in pairs(highlights) do
+            if h then h:Destroy() end
+            if p.Character and p.Character:FindFirstChild("FlyHubESP") then
+                p.Character.FlyHubESP:Destroy()
+            end
+        end
+        table.clear(highlights)
+    end
+end)
 createSlider("ESP Transparency", visualsTab, 0, 10, 5, function(v) config.espTransparency = v/10 end)
 
 -- Weapon Tab
@@ -401,18 +410,19 @@ createButton("Set Color: Purple", settingsTab, function() updateUIColors(Color3.
 
 -- Helper: Robust Team Check
 local function isEnemy(p)
-    if not config.teamCheck then return true end
     if p == player then return false end
     
-    -- Check Team object
+    -- Si el juego usa equipos oficiales de Roblox
     if p.Team ~= nil and player.Team ~= nil then
-        if p.Team ~= player.Team then return true end
+        return p.Team ~= player.Team
     end
     
-    -- Check TeamColor (Backup for games without teams)
-    if p.TeamColor ~= player.TeamColor then return true end
+    -- Si el juego usa TeamColor (colores amarillo, verde, azul que mencionaste)
+    if p.TeamColor ~= player.TeamColor then
+        return true
+    end
     
-    -- Check Neutral status
+    -- Si es neutral pero no es el jugador local
     if p.Neutral then return true end
     
     return false
@@ -760,6 +770,8 @@ local isMinimized = false
 local lastSize = UDim2.new(0, 450, 0, 320)
 minimizeBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
+    
+    -- Forzar visibilidad inmediata de los contenedores
     sidebar.Visible = not isMinimized
     container.Visible = not isMinimized
     resizeHandle.Visible = not isMinimized
@@ -767,9 +779,9 @@ minimizeBtn.MouseButton1Click:Connect(function()
     if isMinimized then
         lastSize = mainFrame.Size
         local targetSize = UDim2.new(0, mainFrame.Size.X.Offset, 0, 40)
-        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+        TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize}):Play()
     else
-        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = lastSize}):Play()
+        TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = lastSize}):Play()
     end
     
     minimizeBtn.Text = isMinimized and "+" or "-"
@@ -777,9 +789,24 @@ end)
 
 -- Close
 closeBtn.MouseButton1Click:Connect(function()
+    -- Limpieza total
     if fovCircle then 
         pcall(function() fovCircle:Remove() end)
     end
+    
+    -- Limpiar ESP
+    for p, h in pairs(highlights) do
+        if h then h:Destroy() end
+        if p.Character and p.Character:FindFirstChild("FlyHubESP") then
+            p.Character.FlyHubESP:Destroy()
+        end
+    end
+    
+    -- Desactivar estados globales
+    config.isFlying = false
+    config.aimbotEnabled = false
+    config.espEnabled = false
+    
     screenGui:Destroy()
     if getgenv then getgenv()[scriptName] = nil end
 end)
